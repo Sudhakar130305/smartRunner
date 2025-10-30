@@ -150,5 +150,14 @@ app.get('/bestPace/:email', async (req, res) => {
         res.status(500).json({ msg: 'Server error' });
     }
 });
+const path = require('path');
+
+// Serve frontend static files
+app.use(express.static(path.join(__dirname, 'frontend')));
+
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'frontend', 'index.html'));
+});
+
 
 app.listen(PORT, () => console.log(`🚀 Server running on http://localhost:${PORT}`));
