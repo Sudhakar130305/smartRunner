@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Smartrunner Dashboard</title>
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(to right, #ff9a9e, #fad0c4);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            width: 90%;
+            max-width: 600px;
+            background: white;
+            padding: 25px;
+            margin-top: 60px;
+            border-radius: 15px;
+            box-shadow: 0 6px 15px rgba(0,0,0,0.3);
+            position: relative;
+        }
+
+        /* --- Logout button top-right --- */
+        .logout-btn {
+            position: absolute;
+            top: 15px;
+            right: 20px;
+            background-color: #ff4081;
+            color: white;
+            border: none;
+            padding: 10px 18px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: bold;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+
+        .logout-btn:hover {
+            background-color: #e91e63;
+        }
+
+        h2, h3 {
+            color: #333;
+            text-align: center;
+        }
+
+        #userName {
+            color: #ff4081;
+        }
+
+        /* --- Add Run section centered --- */
+        .add-run-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        .add-run-form {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 12px;
+            width: 100%;
+            margin-top: 10px;
+        }
+
+        .add-run-form input {
+            width: 80%;
+            max-width: 280px;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid #ccc;
+            text-align: center;
+            font-size: 15px;
+        }
+
+        .add-run-form button {
+            background-color: #ff4081;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            margin-top: 5px;
+        }
+
+        .add-run-form button:hover {
+            background-color: #e91e63;
+        }
+
+        /* --- Best Pace & Runs --- */
+        #bestPace {
+            text-align: center;
+            font-weight: bold;
+            color: #3f51b5;
+        }
+
+        #runList {
+            list-style-type: none;
+            padding: 0;
+        }
+
+        #runList li {
+            background: #f3f3f3;
+            margin: 8px 0;
+            padding: 12px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .delete-btn {
+            background-color: #ff4081;
+            border: none;
+            color: white;
+            border-radius: 6px;
+            padding: 6px 10px;
+            cursor: pointer;
+        }
+
+        .delete-btn:hover {
+            background-color: #e91e63;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <button class="logout-btn" onclick="logout()">Logout</button>
+        <h2>Welcome, <span id="userName"></span> 👋</h2>
+
+        <div class="add-run-container">
+            <h3>Add a Run</h3>
+            <form class="add-run-form" onsubmit="event.preventDefault(); addRun();">
+                <input type="number" id="distance" placeholder="Distance (km)" required />
+                <input type="number" id="time" placeholder="Time (minutes)" required />
+                <button type="submit">Add Run</button>
+            </form>
+        </div>
+
+        <h3>Your Best Pace</h3>
+        <p id="bestPace">Loading...</p>
+
+        <h3>Your Runs</h3>
+        <ul id="runList"></ul>
+    </div>
+
+    <script>
+        const user = JSON.parse(localStorage.getItem('user'));
+        if (!user) { alert('You are not logged in!'); window.location.href = 'index.html'; }
+        document.getElementById('userName').textContent = user.name;
+
+        async function addRun() {
+            const distance = parseFloat(document.getElementById('distance').value);
+            const time = parseFloat(document.getElementById('time').value);
+
+            if (!distance || !time || distance <= 0 || time <= 0) {
+                alert('Enter valid distance and time!');
+                return;
+            }
+
+            const res = await fetch('http://localhost:5000/addRun', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userEmail: user.email, distance, time })
+            });
+
+            const data = await res.json();
+            alert(`✅ Run added! Pace: ${Number(data.pace).toFixed(2)} min/km`);
+
+            document.getElementById('distance').value = '';
+            document.getElementById('time').value = '';
+
+            loadRuns();
+            loadBestPace();
+        }
+
+        async function loadRuns() {
+            const res = await fetch(`http://localhost:5000/getRuns/${user.email}`);
+            const runs = await res.json();
+            const runList = document.getElementById('runList');
+            runList.innerHTML = '';
+
+            runs.forEach(run => {
+                const li = document.createElement('li');
+                li.innerHTML = `
+                    📅 ${new Date(run.date).toLocaleDateString()} — 
+                    🏃 ${run.distance} km in ${run.time} min 
+                    (${Number(run.pace).toFixed(2)} min/km)
+                    <button class="delete-btn" onclick="deleteRun('${run._id}')">🗑️</button>
+                `;
+                runList.appendChild(li);
+            });
+        }
+
+        async function deleteRun(runId) {
+            const confirmDelete = confirm("Are you sure you want to delete this run?");
+            if (!confirmDelete) return;
+
+            const res = await fetch(`http://localhost:5000/deleteRun/${runId}`, {
+                method: 'DELETE'
+            });
+
+            const data = await res.json();
+            alert(data.msg);
+            loadRuns();
+            loadBestPace();
+        }
+
+        async function loadBestPace() {
+            const res = await fetch(`http://localhost:5000/bestPace/${user.email}`);
+            const bestRun = await res.json();
+            const bestPaceEl = document.getElementById('bestPace');
+
+            if (bestRun.msg) {
+                bestPaceEl.textContent = bestRun.msg;
+            } else {
+                bestPaceEl.textContent = `🏆 Best Pace: ${bestRun.pace.toFixed(2)} min/km on ${new Date(bestRun.date).toLocaleDateString()}`;
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('user');
+            window.location.href = 'index.html';
+        }
+
+        loadRuns();
+        loadBestPace();
+    </script>
+</body>
+</html>
+
